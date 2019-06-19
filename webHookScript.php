@@ -35,9 +35,9 @@ if ($isReply && ($messageText === '+' || $messageText === '-')) {
                 $whoWasLiked => $userLikesInfo
             ]);
 
-            $message = '@' . $userName . ' has liked @' . $whoWasLiked;
+            $message = $userName . ' has liked ' . $whoWasLiked;
         } else {
-            $message = '@' . $userName . ' has already liked @' . $whoWasLiked;
+            $message = $userName . ' has already liked ' . $whoWasLiked;
         }
     } elseif ($messageText === '-') {
         if (!in_array($userName, $userLikesInfo['dislikes'])) {
@@ -49,9 +49,9 @@ if ($isReply && ($messageText === '+' || $messageText === '-')) {
                 $whoWasLiked => $userLikesInfo
             ]);
 
-            $message = '@' . $userName . ' has disliked @' . $whoWasLiked;
+            $message = $userName . ' has disliked ' . $whoWasLiked;
         } else {
-            $message = '@' . $userName . ' has already disliked @' . $whoWasLiked;
+            $message = $userName . ' has already disliked ' . $whoWasLiked;
         }
     }
 
@@ -61,22 +61,25 @@ if ($isReply && ($messageText === '+' || $messageText === '-')) {
     ));
 }
 
-if ($messageText === '/statistics' || $messageText === '/statistics@memberRating_bot') {
+if ($messageText === '/statistics@memberRating_bot') {
     $statistics = $rating->getStatistics();;
 
     if ($statistics) {
+        $membersWithLikes = 0;
         foreach ($statistics as $member => $info) {
             $likes = count($info['likes']) - count($info['dislikes']);
+            if ($likes === 0) continue;
             if ($likes < 0) {
-                $message .= "\n@" . $member . ' has '. abs($likes) . " 👎";
+                $message .= "\n" . $member . ' has ' . abs($likes) . " 👎";
             } else {
-                $message .= "\n@" . $member . ' has '. $likes . " 👍";
+                $message .= "\n" . $member . ' has ' . $likes . " 👍";
             }
+            $membersWithLikes++;
         }
+        if ($membersWithLikes === 0) $message = "Statistics is empty";
     } else {
         $message = "Statistics is empty";
     }
-    
 
     $bot->sendMessage(new SendMessage(
         $update->getMessage()->getChat()->getId(),
