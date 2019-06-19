@@ -1,0 +1,15 @@
+{
+    "version": 2,
+    "name": "php-7",
+    "builds": [
+        {
+            "src": "*.php",
+            "use": "@now/php"
+        }
+    ],
+    "env": {
+        "member_rating_bot_token": "@member_rating_bot_token",
+        "member_rating_bot_secretpath": "@member_rating_bot_secretpath",
+        "member_rating_bot_webhookurl": "@member_rating_bot_webhookurl"
+    }
+}
