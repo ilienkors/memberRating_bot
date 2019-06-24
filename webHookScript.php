@@ -13,76 +13,132 @@ $data = json_decode($requestBody, true);
 
 $update = Update::create($data);
 
-$isReply = $update->getMessage()->getReplyToMessage();
-$messageText = $update->getMessage()->getText();
+if ($update->getMessage()) {
+    $isReply = $update->getMessage()->getReplyToMessage();
 
-$chatId = strval($update->getMessage()->getChat()->getId());
-$rating = new Rating($chatId);
+    $messageText = $update->getMessage()->getText();
 
-if ($isReply && ($messageText === '+' || $messageText === '-')) {
+    $chatId = strval($update->getMessage()->getChat()->getId());
+    $rating = new Rating($chatId);
 
-    $userName = $update->getMessage()->getFrom()->getUsername();
-    $whoWasLiked = $isReply->getFrom()->getUsername();
-    $userLikesInfo = $rating->get($whoWasLiked);
+    $likeSymbol = $rating->get('likeSymbol');
+    $dislikeSymbol = $rating->get('dislikeSymbol');
 
-    if ($messageText === '+') {
-        if (!in_array($userName, $userLikesInfo['likes'])) {
-            foreach (array_keys($userLikesInfo['dislikes'], $userName) as $key) {
-                unset($userLikesInfo['dislikes'][$key]);
-            }
-            $userLikesInfo['likes'][] = $userName;
-            $rating->insert([
-                $whoWasLiked => $userLikesInfo
-            ]);
+    if ($isReply && ($messageText == $likeSymbol || $messageText == $dislikeSymbol) && $update->getMessage()->getFrom()->getUsername() != $isReply->getFrom()->getUsername()) {
 
-            $message = $userName . ' has liked ' . $whoWasLiked;
+        $replyMessageId = strval($isReply->getMessageId());
+        $userName = $update->getMessage()->getFrom()->getUsername();
+        $whoWasLiked = $isReply->getFrom()->getUsername();
+        $userLikesInfo = $rating->get($whoWasLiked)[$replyMessageId];
+
+        if ($rating->get($whoWasLiked)['likesCount']) {
+            $userLikesCount = $rating->get($whoWasLiked)['likesCount'];
         } else {
-            $message = $userName . ' has already liked ' . $whoWasLiked;
+            $userLikesCount = 0;
         }
-    } elseif ($messageText === '-') {
-        if (!in_array($userName, $userLikesInfo['dislikes'])) {
-            foreach (array_keys($userLikesInfo['likes'], $userName) as $key) {
-                unset($userLikesInfo['likes'][$key]);
-            }
-            $userLikesInfo['dislikes'][] = $userName;
-            $rating->insert([
-                $whoWasLiked => $userLikesInfo
-            ]);
 
-            $message = $userName . ' has disliked ' . $whoWasLiked;
-        } else {
-            $message = $userName . ' has already disliked ' . $whoWasLiked;
-        }
-    }
+        if ($messageText == $likeSymbol) {
+            if (!in_array($userName, $userLikesInfo['likes'])) {
+                foreach (array_keys($userLikesInfo['dislikes'], $userName) as $key) {
+                    unset($userLikesInfo['dislikes'][$key]);
+                }
+                $userLikesInfo['likes'][] = $userName;
+                $userLikesCount++;
+                $rating->insertMessageInfo($userLikesInfo, $whoWasLiked, $replyMessageId);
+                $rating->insertBig(['likesCount' => $userLikesCount], $whoWasLiked);
 
-    $bot->sendMessage(new SendMessage(
-        $update->getMessage()->getChat()->getId(),
-        $message
-    ));
-}
-
-if ($messageText === '/statistics@memberRating_bot') {
-    $statistics = $rating->getStatistics();;
-
-    if ($statistics) {
-        $membersWithLikes = 0;
-        foreach ($statistics as $member => $info) {
-            $likes = count($info['likes']) - count($info['dislikes']);
-            if ($likes === 0) continue;
-            if ($likes < 0) {
-                $message .= "\n" . $member . ' has ' . abs($likes) . " 👎";
+                $message = $userName . ' has liked ' . $whoWasLiked;
             } else {
-                $message .= "\n" . $member . ' has ' . $likes . " 👍";
+                $message = $userName . ' has already liked ' . $whoWasLiked;
             }
-            $membersWithLikes++;
+        } elseif ($messageText == $dislikeSymbol) {
+            if (!in_array($userName, $userLikesInfo['dislikes'])) {
+                foreach (array_keys($userLikesInfo['likes'], $userName) as $key) {
+                    unset($userLikesInfo['likes'][$key]);
+                }
+                $userLikesInfo['dislikes'][] = $userName;
+                $userLikesCount--;
+                $rating->insertMessageInfo($userLikesInfo, $whoWasLiked, $replyMessageId);
+                $rating->insertBig(['likesCount' => $userLikesCount], $whoWasLiked);
+
+                $message = $userName . ' has disliked ' . $whoWasLiked;
+            } else {
+                $message = $userName . ' has already disliked ' . $whoWasLiked;
+            }
         }
-        if ($membersWithLikes === 0) $message = "Statistics is empty";
-    } else {
-        $message = "Statistics is empty";
+
+        $bot->sendMessage(new SendMessage(
+            $update->getMessage()->getChat()->getId(),
+            $message
+        ));
     }
 
-    $bot->sendMessage(new SendMessage(
-        $update->getMessage()->getChat()->getId(),
-        $message
-    ));
+    if ($messageText === '/statistics@memberRating_bot') {
+        $statistics = $rating->getStatistics();;
+
+        if ($statistics) {
+            $membersWithLikes = 0;
+            foreach ($statistics as $member => $info) {
+                $likes = $info['likesCount'];
+                if ($likes === 0 || $member === 'dislikeSymbol' || $member === 'likeSymbol') continue;
+                if ($likes < 0) {
+                    $message .= "\n" . $member . ' has ' . abs($likes) . " 👎";
+                } else {
+                    $message .= "\n" . $member . ' has ' . $likes . " 👍";
+                }
+                $membersWithLikes++;
+            }
+            if ($membersWithLikes === 0) $message = "Statistics is empty";
+        } else {
+            $message = "Statistics is empty";
+        }
+
+        $bot->sendMessage(new SendMessage(
+            $update->getMessage()->getChat()->getId(),
+            $message
+        ));
+    }
+
+    $command = explode(" ", $messageText);
+    if (count($command) === 2 && $command[0] === '/changeLike@memberRating_bot') {
+
+        if ($dislikeSymbol != $command[1]) {
+            $rating->changeSymbol('likeSymbol', $command[1]);
+            $message = 'Like symbol has been changed for ' . $command[1];
+        } else {
+            $message = 'Like symbol should be different from dislike';
+        }
+
+        $bot->sendMessage(new SendMessage(
+            $update->getMessage()->getChat()->getId(),
+            $message
+        ));
+    }
+
+    if (count($command) === 2 && $command[0] === '/changeDislike@memberRating_bot') {
+
+        if ($likeSymbol != $command[1]) {
+            $rating->changeSymbol('dislikeSymbol', $command[1]);
+            $message = 'Dislike symbol has been changed for ' . $command[1];
+        } else {
+            $message = 'Like symbol should be different from dislike';
+        }
+        $bot->sendMessage(new SendMessage(
+            $update->getMessage()->getChat()->getId(),
+            $message
+        ));
+    }
+
+    if ($messageText === '/help@memberRating_bot') {
+
+        $bot->sendMessage(new SendMessage(
+            $update->getMessage()->getChat()->getId(),
+            'To like comment write ' . $likeSymbol . "\n"
+                . 'To dislike comment write ' . $dislikeSymbol . "\n"
+                . 'You can change default commands with:' . "\n"
+                . '/changeLike@memberRating_bot [newLikeSymbol]' . "\n"
+                . '/changeDislike@memberRating_bot [newDislikeSymbol]' . "\n"
+                . 'Made by @romusk'
+        ));
+    }
 }

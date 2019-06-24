@@ -17,6 +17,10 @@ class Rating
         $firebase = (new Factory)->withServiceAccount($acc)->create();
 
         $this->database = $firebase->getDatabase();
+        if (!$this->database->getReference($this->chatId)->getValue('likeSymbol')) {
+            $this->database->getReference()->getChild($this->chatId)->getChild('likeSymbol')->set('+');
+            $this->database->getReference()->getChild($this->chatId)->getChild('dislikeSymbol')->set('-');
+        }
     }
 
     public function getStatistics()
@@ -37,17 +41,9 @@ class Rating
         }
     }
 
-    public function insert(array $data)
+    public function changeSymbol($whatToChange, $newSymbol)
     {
-        if (empty($data) || !isset($data)) {
-            return FALSE;
-        }
-
-        foreach ($data as $key => $value) {
-            $this->database->getReference()->getChild($this->chatId)->getChild($key)->set($value);
-        }
-
-        return TRUE;
+        $this->database->getReference()->getChild($this->chatId)->getChild($whatToChange)->set($newSymbol);
     }
 
     public function insertBig(array $data, $userName)
@@ -58,6 +54,19 @@ class Rating
 
         foreach ($data as $key => $value) {
             $this->database->getReference()->getChild($this->chatId)->getChild($userName)->getChild($key)->set($value);
+        }
+
+        return TRUE;
+    }
+
+    public function insertMessageInfo(array $data, $userName, $messageId)
+    {
+        if (empty($data) || !isset($data)) {
+            return FALSE;
+        }
+
+        foreach ($data as $key => $value) {
+            $this->database->getReference()->getChild($this->chatId)->getChild($userName)->getChild($messageId)->getChild($key)->set($value);
         }
 
         return TRUE;
