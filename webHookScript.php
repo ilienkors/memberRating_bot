@@ -24,7 +24,7 @@ if ($update->getMessage()) {
     $likeSymbol = $rating->get('likeSymbol');
     $dislikeSymbol = $rating->get('dislikeSymbol');
 
-    if ($isReply && ($messageText == $likeSymbol || $messageText == $dislikeSymbol) && $update->getMessage()->getFrom()->getUsername() != $isReply->getFrom()->getUsername()) {
+    if ($isReply && ($messageText == $likeSymbol || $messageText == $dislikeSymbol) && $update->getMessage()->getFrom()->getUsername() != $isReply->getFrom()->getUsername() && $isReply->getFrom()->getUsername() != 'memberRating_bot') {
 
         $replyMessageId = strval($isReply->getMessageId());
         $userName = $update->getMessage()->getFrom()->getUsername();
